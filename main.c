@@ -323,9 +323,12 @@ unsigned int* getShortestPath(unsigned int* prev, unsigned  int start, unsigned 
     return path;
 }
 unsigned int* dijkstrawithbst(struct NodeBST* root, unsigned int* pathSize,unsigned int start,unsigned int end) {
+    unsigned int* path=NULL;
     if(start==end){
-        pathSize=1;
-        return start;
+        *pathSize=1;
+        path=(unsigned int*) malloc(sizeof(unsigned int));
+        path[0]=start;
+        return path;
     }
     unsigned int* stations= (unsigned int*) malloc(dim * sizeof(unsigned int));
     unsigned int* cars= (unsigned int*) malloc(dim * sizeof(unsigned int));
@@ -361,24 +364,27 @@ unsigned int* dijkstrawithbst(struct NodeBST* root, unsigned int* pathSize,unsig
 
         range=cars[min_index]+stations[min_index];
         unsigned int j=min_index+1;
-            if(j<dimArray){
                 while(stations[j]<=range){
-                    if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
-                        distances[j] = distances[min_index] + j-min_index+1;
-                        prev[j] = min_index;
-                        decreaseDistance(&minHeap, j, distances[j], distances);
+                    if(j<dimArray){
+                        if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
+                            distances[j] = distances[min_index] + j-min_index+1;
+                            prev[j] = min_index;
+                            decreaseDistance(&minHeap, j, distances[j], distances);
+                        }
+                        j++;
                     }
-                    j++;
+                    else break;
                 }
             }
-    }
-    unsigned int* path=NULL;
+
     if(distances[dimArray-1]==UINT_MAX){
         *pathSize=0;
         return NULL;
     }
     else path = getShortestPath(prev, 0, dimArray-1, pathSize);
-
+    for(int i=0;i<*pathSize;i++){
+        path[i]=stations[path[i]];
+    }
 
     free(distances);
     free(prev);
@@ -387,7 +393,90 @@ unsigned int* dijkstrawithbst(struct NodeBST* root, unsigned int* pathSize,unsig
 
     return path;
 }
+unsigned int* dijkstrawithbst2(struct NodeBST* root, unsigned int* pathSize,unsigned int start,unsigned int end) {
+    if(start<end) return dijkstrawithbst(root,pathSize,start,end);
+    unsigned int* path=NULL;
+    unsigned int range;
+    if(start==end){
+        *pathSize=1;
+        path=(unsigned int*) malloc(sizeof(unsigned int));
+        path[0]=start;
+        return path;
+    }
+    unsigned int* stations= (unsigned int*) malloc(dim * sizeof(unsigned int));
+    unsigned int* cars= (unsigned int*) malloc(dim * sizeof(unsigned int));
+    unsigned int dimArray=0;
+    inorderTraversal(root,stations,cars,&dimArray,end,start);
 
+    //vector = realloc(vector, dimArray * sizeof(int));
+    unsigned int* distances = malloc(dimArray * sizeof(unsigned int));
+    unsigned int* prev = malloc(dimArray * sizeof(unsigned int));
+    unsigned int* visited = malloc(dimArray * sizeof(unsigned int));
+    for (unsigned int i = 0; i < dimArray; i++) {
+        distances[i] = UINT_MAX;
+        prev[i] = -1;
+        visited[i] = 0;
+    }
+
+    distances[0] = 0;
+
+    MinHeap minHeap = createMinHeap(dimArray);
+    minHeap.size = dimArray;
+
+    for (unsigned int i = 0; i < dimArray; i++) {
+        minHeap.array[i].index = i;
+        minHeap.array[i].distance = distances[i];
+    }
+
+    while (!isEmpty(&minHeap)) {
+        Node minNode = extractMin(&minHeap, distances);
+        unsigned int min_index = minNode.index;
+
+        visited[min_index] = 1;
+
+        unsigned int j=min_index+1;
+        for(;j<dimArray;j++){
+            if((stations[j]-stations[min_index])<=cars[j] && visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]){
+                distances[j] = distances[min_index] + j-min_index+1;
+                prev[j] = min_index;
+                decreaseDistance(&minHeap, j, distances[j], distances);
+            }
+        }
+        /*range=cars[min_index]+stations[min_index];
+        unsigned int j=min_index+1;
+        while(stations[j]<=range){
+            if(j<dimArray){
+                if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
+                    distances[j] = distances[min_index] + j-min_index+1;
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
+                }
+                j++;
+            }
+            else break;
+        }
+    }*/
+
+
+    }
+
+    if(distances[dimArray-1]==UINT_MAX){
+        *pathSize=0;
+        return NULL;
+    }
+    else path = getShortestPath(prev, 0, dimArray-1, pathSize);
+    unsigned int* pathInvers= (unsigned int*) malloc( *pathSize * sizeof(unsigned int));
+    for(int i=0;i<*pathSize;i++){
+        pathInvers[*pathSize-i-1]=stations[path[i]];
+    }
+
+    free(distances);
+    free(prev);
+    free(visited);
+    free(minHeap.array);
+
+    return pathInvers;
+}
 int main() {
     dim=0;
     struct NodeBST* root = NULL;
@@ -459,15 +548,14 @@ int main() {
             startDistance = strtol(s1,NULL,10);
             endDistance = strtol(s3,NULL,10);
             unsigned int pathSize;
-            unsigned int* shortestPath = dijkstrawithbst(root, &pathSize, startDistance, endDistance);
+            unsigned int* shortestPath = dijkstrawithbst2(root, &pathSize, startDistance, endDistance);
             if (pathSize == 0) {
                 printf("nessun percorso\n");
             }
             else{
-                pathSize--;
-                for (; pathSize >= 0; pathSize--) {
-                    printf("%u", shortestPath[pathSize]);
-                    if(pathSize!=0)printf(" ");
+                for (; pathSize > 0; pathSize--) {
+                    printf("%u", shortestPath[pathSize-1]);
+                    if((pathSize-1)!=0)printf(" ");
                 }
                 printf("\n");
                 free(shortestPath);
