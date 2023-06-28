@@ -3,11 +3,10 @@
 #include <limits.h>
 #include <string.h>
 #include <stdint.h>
-
 unsigned int dim;
 
 typedef struct {
-    unsigned int index;
+    int index;
     unsigned int distance;
 } Node;
 
@@ -17,55 +16,20 @@ typedef struct {
     unsigned int size;
 } MinHeap;
 
-struct NodeCar{
-    unsigned int autonomy;
-    struct NodeCar* left;
-    struct NodeCar* right;
-};
 
 struct NodeBST{
     unsigned int stationID;
-    struct NodeCar* car;
+    unsigned int* car;
+    int size;
     struct NodeBST* left;
     struct NodeBST* right;
 };
 
-struct Station{
-    unsigned int stationID;
-    struct NodeCar* car;
-};
-
-struct NodeCar* createNodeCar(unsigned int value) {
-    struct NodeCar* node = (struct NodeCar*)malloc(sizeof(struct NodeCar));
-    node->autonomy = value;
-    node->left = NULL;
-    node->right = NULL;
-    return node;
-}
-
-struct NodeCar* insertNodeCar(struct NodeCar* root,unsigned int value) {
-    struct NodeCar* ph=NULL;
-    struct NodeCar* node=root;
-    while (node != NULL) {
-        ph=node;
-        if(value < node->autonomy)
-            node=node->left;
-        else
-            node=node->right;
-    }
-    struct NodeCar* new=createNodeCar(value);
-    if(ph==NULL) root=new;
-    else if(value < ph->autonomy)
-        ph->left=new;
-    else
-        ph->right=new;
-    return root;
-}
-
 struct NodeBST* createNode(unsigned int value) {
     struct NodeBST* node = (struct NodeBST*)malloc(sizeof(struct NodeBST));
     node->stationID = value;
-    node->car = NULL;
+    node->size=0;
+    node->car = (unsigned int*)malloc(512*sizeof(unsigned int));
     node->left = NULL;
     node->right = NULL;
     return node;
@@ -90,7 +54,8 @@ struct NodeBST* insertNode(struct NodeBST* root, unsigned int value, unsigned in
         unsigned int autonomy;
         if (scanf("%s", s3) == EOF)return NULL;
         autonomy = strtol(s3,NULL,10);
-        new->car=insertNodeCar(new->car, autonomy);
+        new->car[new->size]=autonomy;
+        new->size++;
     }
     dim++;
     if(ph==NULL) root=new;
@@ -109,22 +74,12 @@ struct NodeBST* minValueNode(struct NodeBST* node) {
     return current;
 }
 
-struct NodeCar* minValueNodeCar(struct NodeCar* node) {
-    struct NodeCar* current = node;
-
-    while (current && current->left != NULL)
-        current = current->left;
-
-    return current;
-}
-
-struct NodeCar* maxValueNodeCar(struct NodeCar* node) {
-    struct NodeCar* current = node;
-
-    while (current && current->right != NULL)
-        current = current->right;
-
-    return current;
+unsigned int maxValueCar(unsigned int car[],int size) {
+    unsigned int max=car[0];
+    for (unsigned int i = 1; i < size; i++) {
+        if(car[i]>max)max=car[i];
+    }
+    return max;
 }
 
 void inorderTraversal(struct NodeBST* root, unsigned int* stations,unsigned int* cars,unsigned  int* index,unsigned int start,unsigned int end) {
@@ -134,7 +89,7 @@ void inorderTraversal(struct NodeBST* root, unsigned int* stations,unsigned int*
     if(root->stationID>start)inorderTraversal(root->left, stations,cars, index, start, end);
     if(root->stationID>=start && root->stationID<=end){
         stations[*index] = root->stationID;
-        cars[*index] = maxValueNodeCar(root->car)->autonomy;
+        cars[*index] = maxValueCar(root->car,root->size);
         *index = *index + 1;
     }
     if(root->stationID<end)inorderTraversal(root->right, stations,cars, index,start, end);
@@ -154,7 +109,17 @@ struct NodeBST* searchNode(struct NodeBST* root,unsigned int value) {
     return NULL;
 }
 
+void freeBST(struct NodeBST* root) {
+    if (root == NULL) {
+        return;
+    }
 
+    freeBST(root->left);
+    freeBST(root->right);
+    free(root->car);
+    free(root);
+    dim=0;
+}
 
 struct NodeBST* deleteNode(struct NodeBST* root, unsigned int value) {
     if (root == NULL){
@@ -166,83 +131,55 @@ struct NodeBST* deleteNode(struct NodeBST* root, unsigned int value) {
     else if (value > root->stationID)
         root->right = deleteNode(root->right, value);
     else {
-        if (root->left == NULL) {
-            struct NodeBST* temp = root->right;
+        // Caso 1: il nodo da eliminare non ha figli
+        if (root->left == NULL && root->right == NULL) {
             free(root);
-            dim--;
+            root = NULL;
             printf("demolita\n");
-            return temp;
+        }
+            // Caso 2: il nodo da eliminare ha un solo figlio (a sinistra o a destra)
+        else if (root->left == NULL) {
+            struct NodeBST* temp = root;
+            root = root->right;
+            free(temp);
+            printf("demolita\n");
         } else if (root->right == NULL) {
-            struct NodeBST* temp = root->left;
-            free(root);
-            dim--;
+            struct NodeBST* temp = root;
+            root = root->left;
+            free(temp);
             printf("demolita\n");
-            return temp;
         }
 
-        struct NodeBST* temp = minValueNode(root->right);
+        else {
+            struct NodeBST* temp = minValueNode(root->right);
 
-        root->stationID = temp->stationID;
+            root->stationID = temp->stationID;
+            root->size = temp->size;
+            for (unsigned int i = 0; i < temp->size; i++) {
+                root->car[i] = temp->car[i];
+            }
 
-        root->right = deleteNode(root->right, temp->stationID);
-    }
-
-    return root;
-}
-struct NodeCar* deleteNodeCar(struct NodeCar* root, unsigned int value) {
-    if (root == NULL){
-        printf("non rottamata\n");
-        return root;
-    }
-    if (value < root->autonomy)
-        root->left = deleteNodeCar(root->left, value);
-    else if (value > root->autonomy)
-        root->right = deleteNodeCar(root->right, value);
-    else {
-        if (root->left == NULL) {
-            struct NodeCar* temp = root->right;
-            free(root);
-            printf("rottamata\n");
-            return temp;
-        } else if (root->right == NULL) {
-            struct NodeCar* temp = root->left;
-            free(root);
-            printf("rottamata\n");
-            return temp;
+            root->right = deleteNode(root->right, temp->stationID);
         }
-
-        struct NodeCar* temp = minValueNodeCar(root->right);
-
-        root->autonomy = temp->autonomy;
-
-        root->right = deleteNodeCar(root->right, temp->autonomy);
     }
 
     return root;
 }
 
-void freeCar(struct NodeCar* root) {
-    if (root == NULL) {
-        return;
+void deleteCar(struct NodeBST* element, unsigned int value) {
+    for(int i = 0; i < element->size; i++) {
+        if(element->car[i] == value) {
+            for(int j = i; j < element->size - 1; j++) {
+                element->car[j] = element->car[j + 1];
+            }
+            element->size--;
+            printf("rottamata\n");
+            return;
+        }
     }
+    printf("non rottamata\n");
 
-    freeCar(root->left);
-    freeCar(root->right);
-    free(root);
 }
-
-void freeBST(struct NodeBST* root) {
-    if (root == NULL) {
-        return;
-    }
-
-    freeBST(root->left);
-    freeBST(root->right);
-    freeCar(root->car);
-    free(root);
-    dim=0;
-}
-
 MinHeap createMinHeap(unsigned int capacity) {
     MinHeap minHeap;
     minHeap.capacity = capacity;
@@ -286,7 +223,7 @@ Node extractMin(MinHeap* minHeap,unsigned int* distances) {
     return minNode;
 }
 
-void decreaseDistance(MinHeap* minHeap,unsigned  int index,unsigned  int distance,unsigned  int* distances) {
+void decreaseDistance(MinHeap* minHeap, int index,unsigned  int distance,unsigned  int* distances) {
     int i;
     for (i = 0; i < minHeap->size; i++) {
         if (minHeap->array[i].index == index) {
@@ -308,6 +245,10 @@ unsigned int* getShortestPath(unsigned int* prev, unsigned  int start, unsigned 
     unsigned int current = end;
 
     while (current != start) {
+        if(current==UINT_MAX){
+            *pathSize=0;
+            return NULL;
+        }
         size++;
         path = realloc(path, size * sizeof(unsigned int));
         path[size - 1] = current;
@@ -351,31 +292,41 @@ unsigned int* dijkstrawithbst(struct NodeBST* root, unsigned int* pathSize,unsig
     MinHeap minHeap = createMinHeap(dimArray);
     minHeap.size = dimArray;
 
-    for (unsigned int i = 0; i < dimArray; i++) {
+    for (int i = 0; i < dimArray; i++) {
         minHeap.array[i].index = i;
         minHeap.array[i].distance = distances[i];
     }
 
     while (!isEmpty(&minHeap)) {
         Node minNode = extractMin(&minHeap, distances);
-        unsigned int min_index = minNode.index;
+        int min_index = minNode.index;
 
         visited[min_index] = 1;
 
         range=cars[min_index]+stations[min_index];
-        unsigned int j=min_index+1;
-                while(stations[j]<=range){
-                    if(j<dimArray){
-                        if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
-                            distances[j] = distances[min_index] + j-min_index+1;
-                            prev[j] = min_index;
-                            decreaseDistance(&minHeap, j, distances[j], distances);
-                        }
-                        j++;
-                    }
-                    else break;
+        int j=min_index+1;
+        while(stations[j]<=range){
+            if(j<dimArray){
+                if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
+                    distances[j] = distances[min_index] + j-min_index+1;
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
                 }
+                /*if (visited[j] == 0 && distances[min_index] + stations[dimArray-1]-stations[j] < distances[j]) {
+                    distances[j] = distances[min_index] + stations[dimArray-1]-stations[j];
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
+                }*/
+                /*if (visited[j] == 0 && distances[min_index] + stations[j]-stations[0] < distances[j]) {
+                    distances[j] = distances[min_index] + stations[j]-stations[0];
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
+                }*/
+                j++;
             }
+            else break;
+        }
+    }
 
     if(distances[dimArray-1]==UINT_MAX){
         *pathSize=0;
@@ -396,7 +347,7 @@ unsigned int* dijkstrawithbst(struct NodeBST* root, unsigned int* pathSize,unsig
 unsigned int* dijkstrawithbst2(struct NodeBST* root, unsigned int* pathSize,unsigned int start,unsigned int end) {
     if(start<end) return dijkstrawithbst(root,pathSize,start,end);
     unsigned int* path=NULL;
-    unsigned int range;
+    //unsigned int range;
     if(start==end){
         *pathSize=1;
         path=(unsigned int*) malloc(sizeof(unsigned int));
@@ -423,21 +374,21 @@ unsigned int* dijkstrawithbst2(struct NodeBST* root, unsigned int* pathSize,unsi
     MinHeap minHeap = createMinHeap(dimArray);
     minHeap.size = dimArray;
 
-    for (unsigned int i = 0; i < dimArray; i++) {
+    for (int i = 0; i < dimArray; i++) {
         minHeap.array[i].index = i;
         minHeap.array[i].distance = distances[i];
     }
 
     while (!isEmpty(&minHeap)) {
         Node minNode = extractMin(&minHeap, distances);
-        unsigned int min_index = minNode.index;
+        int min_index = minNode.index;
 
         visited[min_index] = 1;
 
-        unsigned int j=min_index+1;
+        int j=min_index+1;
         for(;j<dimArray;j++){
-            if((stations[j]-stations[min_index])<=cars[j] && visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]){
-                distances[j] = distances[min_index] + j-min_index+1;
+            if((stations[j]-stations[min_index])<=cars[j] && visited[j] == 0 && distances[min_index] + stations[dimArray-1]-stations[j] < distances[j]){
+                distances[j] = distances[min_index] + stations[dimArray-1]-stations[j];
                 prev[j] = min_index;
                 decreaseDistance(&minHeap, j, distances[j], distances);
             }
@@ -477,28 +428,237 @@ unsigned int* dijkstrawithbst2(struct NodeBST* root, unsigned int* pathSize,unsi
 
     return pathInvers;
 }
+
+unsigned int* dijkstrawithbst2prova(struct NodeBST* root, unsigned int* pathSize,unsigned int start,unsigned int end) {
+    if(start<end) return dijkstrawithbst(root,pathSize,start,end);
+    unsigned int* path=NULL;
+    //unsigned int range;
+    if(start==end){
+        *pathSize=1;
+        path=(unsigned int*) malloc(sizeof(unsigned int));
+        path[0]=start;
+        return path;
+    }
+    unsigned int* stations= (unsigned int*) malloc(dim * sizeof(unsigned int));
+    unsigned int* cars= (unsigned int*) malloc(dim * sizeof(unsigned int));
+    unsigned int dimArray=0;
+    inorderTraversal(root,stations,cars,&dimArray,end,start);
+
+    //vector = realloc(vector, dimArray * sizeof(int));
+    unsigned int* distances = malloc(dimArray * sizeof(unsigned int));
+    unsigned int* prev = malloc(dimArray * sizeof(unsigned int));
+    unsigned int* visited = malloc(dimArray * sizeof(unsigned int));
+    for (unsigned int i = 0; i < dimArray; i++) {
+        distances[i] = UINT_MAX;
+        prev[i] = -1;
+        visited[i] = 0;
+    }
+
+    distances[0] = 0;
+
+    MinHeap minHeap = createMinHeap(dimArray);
+    minHeap.size = dimArray;
+
+    for (int i = 0; i < dimArray; i++) {
+        minHeap.array[i].index = i;
+        minHeap.array[i].distance = distances[i];
+    }
+
+    while (!isEmpty(&minHeap)) {
+        Node minNode = extractMin(&minHeap, distances);
+        int min_index = minNode.index;
+
+        visited[min_index] = 1;
+
+        int j=min_index+1;
+        for(;j<dimArray;j++){
+            if((stations[j]-stations[min_index])<=cars[j] && visited[j] == 0 && distances[min_index] + stations[dimArray-1]-stations[j] < distances[j]){
+                distances[j] = distances[min_index] + stations[dimArray-1]-stations[j];
+                prev[j] = min_index;
+                decreaseDistance(&minHeap, j, distances[j], distances);
+            }
+        }
+        /*range=cars[min_index]+stations[min_index];
+        unsigned int j=min_index+1;
+        while(stations[j]<=range){
+            if(j<dimArray){
+                if (visited[j] == 0 && distances[min_index] + j-min_index+1 < distances[j]) {
+                    distances[j] = distances[min_index] + j-min_index+1;
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
+                }
+                j++;
+            }
+            else break;
+        }
+    }*/
+
+
+    }
+
+    if(distances[dimArray-1]==UINT_MAX){
+        *pathSize=0;
+        return NULL;
+    }
+    else path = getShortestPath(prev, 0, dimArray-1, pathSize);
+    unsigned int* pathInvers= (unsigned int*) malloc( *pathSize * sizeof(unsigned int));
+    for(int i=0;i<*pathSize;i++){
+        pathInvers[*pathSize-i-1]=stations[path[i]];
+    }
+
+    free(distances);
+    free(prev);
+    free(visited);
+    free(minHeap.array);
+
+    return pathInvers;
+}
+unsigned int* dijkstraReverseWithBST(struct NodeBST* root, unsigned int* pathSize, unsigned int start, unsigned int end) {
+    if(start<end) return dijkstrawithbst(root,pathSize,start,end);
+    unsigned int* path = NULL;
+
+    if (start == end) {
+        *pathSize = 1;
+        path = (unsigned int*)malloc(sizeof(unsigned int));
+        path[0] = start;
+        return path;
+    }
+
+    unsigned int* stations = (unsigned int*)malloc(dim * sizeof(unsigned int));
+    unsigned int* cars = (unsigned int*)malloc(dim * sizeof(unsigned int));
+    unsigned int dimArray = 0;
+
+    inorderTraversal(root, stations, cars, &dimArray, end, start);
+
+    unsigned int* distances = (unsigned int*)malloc(dimArray * sizeof(unsigned int));
+    unsigned int* prev = (unsigned int*)malloc(dimArray * sizeof(unsigned int));
+    unsigned int* visited = (unsigned int*)malloc(dimArray * sizeof(unsigned int));
+    unsigned int range;
+
+    for (unsigned int i = 0; i < dimArray; i++) {
+        distances[i] = UINT_MAX;
+        prev[i] = -1;
+        visited[i] = 0;
+    }
+
+    distances[dimArray - 1] = 0;
+
+    MinHeap minHeap = createMinHeap(dimArray);
+    minHeap.size = dimArray;
+
+    for (int i = 0; i < dimArray; i++) {
+        minHeap.array[i].index = i;
+        minHeap.array[i].distance = distances[i];
+    }
+    int startIndex = (int)(minHeap.size - 2) / 2;
+
+    for (int i = startIndex; i >= 0; i--) {
+        minHeapify(&minHeap, i, distances);
+    }
+
+    while (!isEmpty(&minHeap)) {
+        Node minNode = extractMin(&minHeap, distances);
+        int min_index = minNode.index;
+
+        visited[min_index] = 1;
+
+        range =stations[min_index] - cars[min_index];
+        if(stations[min_index]<cars[min_index]) range=0;
+        int j = min_index - 1;
+
+        while (stations[j] >= range) {
+            if (j >= 0) {
+                if (visited[j] == 0 && distances[min_index] + 1 < distances[j]) {
+                    distances[j] = distances[min_index] + 1;
+                    prev[j] = min_index;
+                    decreaseDistance(&minHeap, j, distances[j], distances);
+                }
+                else if (visited[j] == 0 && distances[min_index] + 1 == distances[j]) {
+                    if(min_index<prev[j])prev[j] = min_index;
+                }
+                j--;
+            } else {
+                break;
+            }
+        }
+    }
+
+    if (distances[0] == UINT_MAX) {
+        *pathSize = 0;
+        return NULL;
+    } else {
+        path = getShortestPath(prev, dimArray - 1, 0, pathSize);
+    }
+
+    for (int i = 0; i < *pathSize; i++) {
+        path[i] = stations[path[i]];
+    }
+
+    free(distances);
+    free(prev);
+    free(visited);
+    free(minHeap.array);
+
+    return path;
+}
 int main() {
     dim=0;
     struct NodeBST* root = NULL;
     struct NodeBST* tempStation= NULL;
+    char c;
+    int index;
     char command[32];
     char s1[32];
     char s2[32];
     char s3[32];
     unsigned int distance, numCars, autonomy;
 
-    while (1) {
-        if (scanf("%s", command) == EOF)break;
-        if (strcmp(command, "aggiungi-stazione") == 0) {
+    while ((c=getc_unlocked(stdin)) != EOF) {
+        index=0;
+        if(c != '\n') command[index++]=c;
+        while((c=getc_unlocked(stdin)) != ' ') {
+            if (c == EOF)return 0;
+            command[index++] = c;
+        }
+        if (strncmp(command, "rottama-auto",12) == 0) {
+            if (scanf("%s", s1) == EOF)return 0;
+            if (scanf("%s", s3) == EOF)return 0;
+            distance = strtol(s1,NULL,10);
+            autonomy = strtol(s3,NULL,10);
+            tempStation=searchNode(root,distance);
+            if(tempStation==NULL)printf("non rottamata\n");
+            else{
+                deleteCar(tempStation, autonomy);
+            }
+        }
+
+        else if (strncmp(command, "aggiungi-auto",13) == 0) {
+
+            if (scanf("%s", s1) == EOF)return 0;
+            if (scanf("%s", s3) == EOF)return 0;
+            distance = strtol(s1,NULL,10);
+            autonomy = strtol(s3,NULL,10);
+            tempStation=searchNode(root,distance);
+            if(tempStation==NULL)printf("non aggiunta\n");
+            else{
+                tempStation->car[tempStation->size]=autonomy;
+                tempStation->size++;
+                printf("aggiunta\n");
+            }
+        }
+
+
+        else if (strncmp(command, "aggiungi-stazione",17) == 0) {
 
             if (scanf("%s", s1) == EOF)return 0;
             if (scanf("%s", s2) == EOF)return 0;
             distance = strtol(s1,NULL,10);
             numCars = strtol(s2,NULL,10);
-
-
             tempStation=insertNode(root, distance, numCars);
-            if(tempStation==NULL)printf("non aggiunta\n");
+            if(tempStation==NULL){
+                printf("non aggiunta\n");
+                for(int i=0;i<numCars;i++) if(scanf("%s",s1)==EOF)return 0;
+            }
             else{
                 root=tempStation;
                 printf("aggiunta\n");
@@ -506,41 +666,17 @@ int main() {
 
         }
 
-        else if (strcmp(command, "demolisci-stazione") == 0) {
+        else if (strncmp(command, "demolisci-stazione",18) == 0) {
 
             if(scanf("%s", s1) == EOF)return 0;
             distance = strtol(s1,NULL,10);
 
-            root=deleteNode(root, distance);
+            tempStation=deleteNode(root, distance);
+            root=tempStation;
+
 
         }
-        else if (strcmp(command, "aggiungi-auto") == 0) {
-
-            if (scanf("%s", s1) == EOF)return 0;
-            if (scanf("%s", s3) == EOF)return 0;
-            distance = strtol(s1,NULL,10);
-            autonomy = strtol(s3,NULL,10);
-
-            tempStation=searchNode(root,distance);
-            if(tempStation==NULL)printf("non aggiunta\n");
-            else{
-                tempStation->car=insertNodeCar(tempStation->car, autonomy);
-                printf("aggiunta\n");
-            }
-        }
-        else if (strcmp(command, "rottama-auto") == 0) {
-            if (scanf("%s", s1) == EOF)return 0;
-            if (scanf("%s", s3) == EOF)return 0;
-            distance = strtol(s1,NULL,10);
-            autonomy = strtol(s3,NULL,10);
-
-            tempStation=searchNode(root,distance);
-            if(tempStation==NULL)printf("non rottamata\n");
-            else{
-                tempStation->car=deleteNodeCar(tempStation->car, autonomy);
-            }
-        }
-        else if (strcmp(command, "pianifica-percorso") == 0) {
+        else if (strncmp(command, "pianifica-percorso",18) == 0) {
 
             unsigned int startDistance, endDistance;
             if (scanf("%s", s1) == EOF)return 0;
@@ -548,7 +684,7 @@ int main() {
             startDistance = strtol(s1,NULL,10);
             endDistance = strtol(s3,NULL,10);
             unsigned int pathSize;
-            unsigned int* shortestPath = dijkstrawithbst2(root, &pathSize, startDistance, endDistance);
+            unsigned int* shortestPath = dijkstraReverseWithBST(root, &pathSize, startDistance, endDistance);
             if (pathSize == 0) {
                 printf("nessun percorso\n");
             }
