@@ -109,6 +109,18 @@ struct NodeBST* searchNode(struct NodeBST* root,unsigned int value) {
     return NULL;
 }
 
+void freeBST(struct NodeBST* root) {
+    if (root == NULL) {
+        return;
+    }
+
+    freeBST(root->left);
+    freeBST(root->right);
+    free(root->car);
+    free(root);
+    dim=0;
+}
+
 struct NodeBST* deleteNode(struct NodeBST* root, unsigned int value) {
     if (root == NULL){
         printf("non demolita\n");
